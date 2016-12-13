@@ -10,10 +10,10 @@
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
  *
- * 1. The above copyright notice and this permission notice shall be 
+ * 1. The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  *
- * 2. If the Software is incorporated into a build system that allows 
+ * 2. If the Software is incorporated into a build system that allows
  * selection among a list of target devices, then similar target
  * devices manufactured by PJRC.COM must be included in the list of
  * target devices and selectable in the same manner.
@@ -31,18 +31,41 @@
 #ifndef AudioStream_h
 #define AudioStream_h
 
-#include "Arduino.h"
+#ifndef __ASSEMBLER__
+#include <stdio.h>  // for NULL
+#include <string.h> // for memcpy
+#include "kinetis.h"
+#endif
 
+// AUDIO_BLOCK_SAMPLES determines how many samples the audio library processes
+// per update.  It may be reduced to achieve lower latency response to events,
+// at the expense of higher interrupt and DMA setup overhead.
+//
+// Less than 32 may not work with some input & output objects.  Multiples of 16
+// should be used, since some synthesis objects generate 16 samples per loop.
+//
+// Some parts of the audio library may have hard-coded dependency on 128 samples.
+// Please report these on the forum with reproducible test cases.
+
+#if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 #define AUDIO_BLOCK_SAMPLES  128
-#define AUDIO_SAMPLE_RATE    44100
+#define AUDIO_SAMPLE_RATE    44117.64706
 #define AUDIO_SAMPLE_RATE_EXACT 44117.64706 // 48 MHz / 1088, or 96 MHz * 2 / 17 / 256
+#elif defined(__MKL26Z64__)
+#define AUDIO_BLOCK_SAMPLES  64
+#define AUDIO_SAMPLE_RATE    22058.82353
+#define AUDIO_SAMPLE_RATE_EXACT 22058.82353 // 48 MHz / 2176, or 96 MHz * 1 / 17 / 256
+#endif
 
+#ifndef __ASSEMBLER__
 class AudioStream;
 class AudioConnection;
 
 typedef struct audio_block_struct {
 	unsigned char ref_count;
 	unsigned char memory_pool_index;
+	unsigned char reserved1;
+	unsigned char reserved2;
 	int16_t data[AUDIO_BLOCK_SAMPLES];
 } audio_block_t;
 
@@ -50,12 +73,12 @@ typedef struct audio_block_struct {
 class AudioConnection
 {
 public:
-	AudioConnection(AudioStream &source, AudioStream &destination) : 
+	AudioConnection(AudioStream &source, AudioStream &destination) :
 		src(source), dst(destination), src_index(0), dest_index(0),
 		next_dest(NULL)
 		{ connect(); }
 	AudioConnection(AudioStream &source, unsigned char sourceOutput,
-		AudioStream &destination, unsigned char destinationInput) : 
+		AudioStream &destination, unsigned char destinationInput) :
 		src(source), dst(destination),
 		src_index(sourceOutput), dest_index(destinationInput),
 		next_dest(NULL)
@@ -139,8 +162,8 @@ private:
 	static AudioStream *first_update; // for update_all
 	AudioStream *next_update; // for update_all
 	static audio_block_t *memory_pool;
-	static uint8_t memory_pool_size;
-	static uint32_t memory_pool_available_mask;
+	static uint32_t memory_pool_available_mask[6];
 };
 
+#endif
 #endif
